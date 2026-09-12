@@ -20,7 +20,7 @@ COPY docker/php/local.ini /usr/local/etc/php/conf.d/local.ini
 COPY docker/apache2/sites-available/000-default.conf /etc/apache2/sites-available/000-default.conf
 COPY . .
 
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader \
+RUN composer install --prefer-dist --no-interaction --optimize-autoloader \
     && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 80

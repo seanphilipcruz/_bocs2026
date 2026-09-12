@@ -12,6 +12,7 @@ services:
     volumes:
       - .:/var/www/html/bocs2026
       - /var/www/html/bocs2026/vendor
+      - bocs2026_passport_keys:/var/www/html/bocs2026/storage/passport
     depends_on:
       db:
         condition: service_healthy
@@ -32,6 +33,7 @@ services:
     volumes:
       - bocs2026_dbdata:/var/lib/mysql
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./docker/mysql/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psecret"]
       interval: 5s
@@ -45,3 +47,4 @@ networks:
 
 volumes:
   bocs2026_dbdata:
+  bocs2026_passport_keys:

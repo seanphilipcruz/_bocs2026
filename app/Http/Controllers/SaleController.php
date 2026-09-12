@@ -116,10 +116,7 @@ class SaleController extends Controller
             ], 201);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function show($id)
@@ -187,10 +184,7 @@ class SaleController extends Controller
                     ], 201);
                 }
 
-                return response()->json([
-                    'status' => 'success',
-                    'message' => $invoice_validator->errors()->all(),
-                ], 400);
+                return $this->validationError($invoice_validator);
             } else {
                 if ($request['month'] != $sale['month']) {
                     $this->Log(
@@ -291,10 +285,7 @@ class SaleController extends Controller
             ]);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function destroy($id, Request $request)
@@ -334,10 +325,7 @@ class SaleController extends Controller
             }
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function save_invoice($id, Request $request)
@@ -373,10 +361,7 @@ class SaleController extends Controller
             ]);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function get_revision($id, Request $request)

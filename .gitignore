@@ -19,6 +19,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/docker/mysql/initdb/*.sql
 Homestead.json
 Homestead.yaml
 Thumbs.db

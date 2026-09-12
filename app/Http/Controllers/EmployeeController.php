@@ -62,10 +62,7 @@ class EmployeeController extends Controller
             ], 201);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function show($id)
@@ -156,10 +153,7 @@ class EmployeeController extends Controller
             }
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function setStatus($id, Request $request)

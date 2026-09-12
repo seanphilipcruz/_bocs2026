@@ -182,10 +182,7 @@ class ContractController extends Controller
             ], 201);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors()->all(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function show($id)

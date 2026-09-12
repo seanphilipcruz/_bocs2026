@@ -58,10 +58,7 @@ class AgencyController extends Controller
             ]);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors(),
-        ]);
+        return $this->validationError($validator);
     }
 
     public function show($id)
@@ -160,10 +157,7 @@ class AgencyController extends Controller
             ]);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => $validator->errors(),
-        ], 400);
+        return $this->validationError($validator);
     }
 
     public function destroy($id)
