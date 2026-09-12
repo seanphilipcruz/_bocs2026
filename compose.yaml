@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bocs2026_app
+    restart: unless-stopped
+    ports:
+      - "9003:80"
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html/bocs2026
+      - /var/www/html/bocs2026/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bocs2026
+
+  db:
+    image: mysql:8.4
+    container_name: bocs2026_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: rxninthr_bocs
+      MYSQL_USER: bocs
+      MYSQL_PASSWORD: secret
+    ports:
+      - "3309:3306"
+    volumes:
+      - bocs2026_dbdata:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bocs2026
+
+networks:
+  bocs2026:
+
+volumes:
+  bocs2026_dbdata:
