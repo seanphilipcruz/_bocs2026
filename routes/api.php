@@ -28,7 +28,7 @@ Route::get('/', function () {
         'status' => 'success',
         'name' => config('app.name'),
         'message' => 'BOCS API is running.',
-        'login_url' => url('/api/login'),
+        'login_url' => request()->getBaseUrl().'/api/login',
     ]);
 });
 

@@ -22,6 +22,10 @@ class ApiJsonResponseTest extends TestCase
             Route::get('/failure', function (): never {
                 throw new RuntimeException('Sensitive implementation detail');
             });
+
+            Route::get('/passport-failure', function (): never {
+                throw new RuntimeException('Key file does not exist or is not readable');
+            });
         });
     }
 
@@ -79,12 +83,43 @@ class ApiJsonResponseTest extends TestCase
             ->assertJsonStructure(['status', 'code', 'message']);
     }
 
-    public function test_unexpected_errors_are_json_without_leaking_details(): void
+    public function test_unexpected_errors_return_safe_actionable_json_details(): void
     {
         $response = $this->getJson('/api/testing/failure')
             ->assertServerError()
-            ->assertExactJson(['status' => 'error', 'code' => 'server_error', 'message' => 'An unexpected error occurred.']);
+            ->assertHeader('X-Request-ID')
+            ->assertJsonPath('status', 'error')
+            ->assertJsonPath('code', 'server_error')
+            ->assertJsonPath('message', 'The API could not complete the request.')
+            ->assertJsonPath('error.category', 'application_error')
+            ->assertJsonPath('error.method', 'GET')
+            ->assertJsonPath('error.path', 'api/testing/failure')
+            ->assertJsonStructure(['error' => ['category', 'request_id', 'method', 'path', 'suggestion']]);
 
         $this->assertStringNotContainsString('Sensitive implementation detail', $response->getContent());
+        $this->assertSame($response->headers->get('X-Request-ID'), $response->json('error.request_id'));
+    }
+
+    public function test_debug_mode_includes_the_exception_details_and_trimmed_trace(): void
+    {
+        config(['app.debug' => true]);
+
+        $this->getJson('/api/testing/failure')
+            ->assertServerError()
+            ->assertJsonPath('error.debug.exception', RuntimeException::class)
+            ->assertJsonPath('error.debug.message', 'Sensitive implementation detail')
+            ->assertJsonStructure(['error' => ['debug' => ['exception', 'message', 'file', 'line', 'trace']]]);
+    }
+
+    public function test_passport_failures_receive_specific_safe_guidance(): void
+    {
+        $this->getJson('/api/testing/passport-failure')
+            ->assertServerError()
+            ->assertJsonPath('error.category', 'authentication_configuration_error')
+            ->assertJsonPath('message', 'The authentication service is not configured correctly.')
+            ->assertJsonPath(
+                'error.suggestion',
+                'Verify that the Laravel Passport keys exist, are readable, and have valid permissions.',
+            );
     }
 }

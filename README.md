@@ -15,6 +15,60 @@ reporting, notifications, and shared controller traits are preserved.
 The API is available at `http://localhost:9003/api`. MySQL is exposed on port
 `3309`; the isolated Docker volume does not reuse the legacy BOCS database.
 
+## Production deployment under `/_bocs`
+
+The production application is mounted below `https://rx931.com/_bocs`. Set the
+application URL accordingly and leave the Docker-only Passport key path empty:
+
+```env
+APP_URL=https://rx931.com/_bocs
+APP_DEBUG=false
+PASSPORT_KEY_PATH=
+```
+
+The public entry point calls `$app->usePublicPath(__DIR__)`, and the API
+playground derives requests from Laravel's detected base path. Login requests
+must therefore resolve to:
+
+```text
+https://rx931.com/_bocs/api/login
+```
+
+### Passport signing keys
+
+Passport requires both signing keys to exist and have restrictive permissions.
+From the production project directory, run:
+
+```bash
+chmod 600 storage/oauth-private.key
+chmod 600 storage/oauth-public.key
+
+php artisan optimize:clear
+php artisan config:cache
+```
+
+If PHP runs under a shared group and cannot read files with mode `600`, use
+`660` for both files. In cPanel File Manager, this can be configured through
+the file **Permissions** action.
+
+Do not regenerate existing keys during a routine deployment. Replacing them
+invalidates previously issued access tokens. Only when the keys do not exist,
+generate them once with:
+
+```bash
+php artisan passport:keys
+```
+
+After deployment, open `https://rx931.com/_bocs`, log in through the API
+playground, and verify a protected endpoint. If temporary diagnostics require
+`APP_DEBUG=true`, restore it to `false` immediately afterward and rebuild the
+configuration cache:
+
+```bash
+php artisan optimize:clear
+php artisan config:cache
+```
+
 ## Verification
 
 Run `php artisan test`, `php artisan route:list --path=api`, and

@@ -123,4 +123,6 @@ return [
         'remember_days' => (int) env('AUTH_REMEMBER_TOKEN_DAYS', 30),
     ],
 
+    'passport_key_path' => env('PASSPORT_KEY_PATH'),
+
 ];

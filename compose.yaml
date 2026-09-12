@@ -9,6 +9,8 @@ services:
       - "9003:80"
     env_file:
       - .env
+    environment:
+      PASSPORT_KEY_PATH: /var/www/html/bocs2026/storage/passport
     volumes:
       - .:/var/www/html/bocs2026
       - /var/www/html/bocs2026/vendor

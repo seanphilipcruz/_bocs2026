@@ -26,6 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return ApiErrorResponse::from($exception);
+            return ApiErrorResponse::from($exception, $request);
         });
     })->create();

@@ -7,6 +7,8 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -24,7 +26,7 @@ class ApiErrorResponse
         ], Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 
-    public static function from(Throwable $exception): JsonResponse
+    public static function from(Throwable $exception, ?Request $request = null): JsonResponse
     {
         [$status, $code, $message] = match (true) {
             $exception instanceof ValidationException => [Response::HTTP_UNPROCESSABLE_ENTITY, 'validation_error', 'The given data was invalid.'],
@@ -41,7 +43,81 @@ class ApiErrorResponse
             $payload['errors'] = $exception->errors();
         }
 
+        if ($status >= Response::HTTP_INTERNAL_SERVER_ERROR) {
+            $requestId = $request?->header('X-Request-ID') ?: (string) Str::uuid();
+            [$category, $safeMessage, $suggestion] = self::serverErrorDetails($exception);
+
+            $payload['message'] = $safeMessage;
+            $payload['error'] = [
+                'category' => $category,
+                'request_id' => $requestId,
+                'method' => $request?->method(),
+                'path' => $request?->path(),
+                'suggestion' => $suggestion,
+            ];
+
+            if (config('app.debug')) {
+                $payload['error']['debug'] = [
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                    'trace' => collect($exception->getTrace())
+                        ->take(8)
+                        ->map(fn (array $frame): array => array_filter([
+                            'file' => $frame['file'] ?? null,
+                            'line' => $frame['line'] ?? null,
+                            'class' => $frame['class'] ?? null,
+                            'function' => $frame['function'] ?? null,
+                        ], fn ($value): bool => $value !== null))
+                        ->values()
+                        ->all(),
+                ];
+            }
+
+            return response()->json($payload, $status, ['X-Request-ID' => $requestId]);
+        }
+
         return response()->json($payload, $status);
+    }
+
+    private static function serverErrorDetails(Throwable $exception): array
+    {
+        $message = strtolower($exception->getMessage());
+
+        if (str_contains($message, 'oauth')
+            || str_contains($message, 'cryptkey')
+            || str_contains($message, 'key file')
+            || str_contains($message, 'key path')
+            || str_contains($message, 'invalid key supplied')) {
+            return [
+                'authentication_configuration_error',
+                'The authentication service is not configured correctly.',
+                'Verify that the Laravel Passport keys exist, are readable, and have valid permissions.',
+            ];
+        }
+
+        if (str_contains($message, 'sqlstate') || str_contains($message, 'database')) {
+            return [
+                'database_error',
+                'The API could not complete a database operation.',
+                'Verify the database connection, schema migrations, and submitted data.',
+            ];
+        }
+
+        if (str_contains($message, 'permission denied') || str_contains($message, 'not writable')) {
+            return [
+                'filesystem_error',
+                'The API could not access a required file or directory.',
+                'Verify ownership and permissions for Laravel storage and cache directories.',
+            ];
+        }
+
+        return [
+            'application_error',
+            'The API could not complete the request.',
+            'Use the request_id to locate the matching exception in storage/logs/laravel.log.',
+        ];
     }
 
     private static function httpExceptionDetails(HttpExceptionInterface $exception): array

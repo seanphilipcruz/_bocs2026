@@ -121,7 +121,20 @@
 
 <script>
     const $ = id => document.getElementById(id);
+    const appBasePath = @json(rtrim(request()->getBaseUrl(), '/'));
+    const apiBaseUrl = `${appBasePath}/api`;
     let accessToken = sessionStorage.getItem('bocs_api_token') || '';
+
+    function resolveRequestUrl(path) {
+        const value = path.trim();
+
+        if (/^https?:\/\//i.test(value)) return value;
+        if (value === '/api' || value === 'api') return apiBaseUrl;
+        if (value.startsWith('/api/')) return `${apiBaseUrl}${value.slice(4)}`;
+        if (value.startsWith('api/')) return `${apiBaseUrl}/${value.slice(4)}`;
+
+        return `${appBasePath}/${value.replace(/^\/+/, '')}`;
+    }
 
     function showToken() {
         $('token').textContent = accessToken ? `Bearer ${accessToken.slice(0, 42)}…` : 'No bearer token stored.';
@@ -137,7 +150,7 @@
     async function apiRequest(path, options = {}) {
         const headers = { Accept: 'application/json', ...(options.headers || {}) };
         if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-        const response = await fetch(path, { ...options, headers });
+        const response = await fetch(resolveRequestUrl(path), { ...options, headers });
         const text = await response.text();
         let payload;
         try { payload = text ? JSON.parse(text) : {}; } catch { payload = text; }
