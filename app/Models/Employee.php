@@ -29,6 +29,13 @@ class Employee extends Authenticatable
         'remember_token',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'password' => 'hashed',
+        ];
+    }
+
     public function Job()
     {
         return $this->belongsTo(Job::class);

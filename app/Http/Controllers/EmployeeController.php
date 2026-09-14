@@ -135,7 +135,16 @@ class EmployeeController extends Controller
                 );
             }
 
-            $employee->update($request->except('is_active'));
+            $employee->update($request->only([
+                'last_name',
+                'first_name',
+                'middle_name',
+                'nickname',
+                'email',
+                'birthday',
+                'color',
+                'job_id',
+            ]));
 
             if ($this->authenticatedUser('id') == $id) {
                 $user = Employee::with('Job')->findOrFail($this->authenticatedUser('id'));
@@ -224,61 +233,80 @@ class EmployeeController extends Controller
     public function changePassword($id, Request $request)
     {
         $employee = Employee::with('Logs')->findOrFail($id);
+        $authenticatedUser = Auth::user();
+        $isOwnPassword = (int) $authenticatedUser->id === (int) $employee->id;
+        $canResetPassword = in_array((string) $authenticatedUser->Job->level, ['0', '1'], true);
 
-        $validation = Validator::make($request->all(), [
-            'password' => ['min:6', 'required'],
-        ]);
-
-        if ($validation->passes()) {
-            $old_password = $employee['password'];
-            $current_password = $request['current_password'];
-            $new_password = $request['password'];
-
-            // if the old password and new password matches
-            $match = Hash::check($current_password, $old_password);
-
-            if ($match) {
-                // verify if the user is using the old password to renew.
-                $verify = Hash::check($new_password, $old_password);
-
-                if ($verify) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Your old password cannot be re-used as your new password.',
-                    ], 400);
-                }
-
-                $request['password'] = Hash::make($request['password']);
-
-                $employee['password'] = $request['password'];
-
-                $employee->update();
-
-                $this->Log(
-                    'Changed '.$employee->first_name.'\'s password',
-                    $this->authenticatedUser('id')
-                );
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Password successfully changed!',
-                ]);
-            }
-
-            $this->Log(
-                'Attempted to change an Employee\'s Password',
-                $this->authenticatedUser('id')
-            );
-
+        if (! $isOwnPassword && ! $canResetPassword) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Passwords do not match!',
-            ], 400);
+                'code' => 'password_reset_forbidden',
+                'message' => 'You are not authorized to reset this employee\'s password.',
+            ], 403);
         }
 
+        $rules = [
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ];
+
+        if ($isOwnPassword) {
+            $rules['current_password'] = ['required', 'string'];
+        }
+
+        $validation = Validator::make($request->all(), $rules);
+
+        if ($validation->fails()) {
+            return $this->validationError($validation);
+        }
+
+        $oldPassword = $employee->password;
+        $usesBcrypt = is_string($oldPassword)
+            && (password_get_info($oldPassword)['algoName'] ?? 'unknown') === 'bcrypt';
+
+        if ($isOwnPassword && ! $usesBcrypt) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'password_reset_required',
+                'message' => 'The stored password is not a valid bcrypt hash and must be reset by an administrator.',
+                'error' => [
+                    'category' => 'legacy_password_error',
+                    'stage' => 'verify_current_password',
+                    'employee_id' => (int) $employee->id,
+                    'suggestion' => 'Ask an administrator to reset this employee password.',
+                ],
+            ], 422);
+        }
+
+        if ($isOwnPassword && ! Hash::check($request->string('current_password'), $oldPassword)) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'current_password_incorrect',
+                'message' => 'The current password is incorrect.',
+            ], 422);
+        }
+
+        if ($isOwnPassword && Hash::check($request->string('password'), $oldPassword)) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'password_reused',
+                'message' => 'The old password cannot be reused as the new password.',
+            ], 422);
+        }
+
+        $employee->password = $request->string('password')->toString();
+        $employee->save();
+        $employee->tokens()->update(['revoked' => true]);
+
+        $this->Log(
+            ($isOwnPassword ? 'Changed ' : 'Reset ').$employee->first_name.'\'s password',
+            $authenticatedUser->id
+        );
+
         return response()->json([
-            'status' => 'error',
-            'message' => $validation->errors()->all(),
-        ], 400);
+            'status' => 'success',
+            'message' => $isOwnPassword
+                ? 'Password successfully changed! Please sign in again.'
+                : 'Password successfully reset. The employee must sign in again.',
+        ]);
     }
 }
